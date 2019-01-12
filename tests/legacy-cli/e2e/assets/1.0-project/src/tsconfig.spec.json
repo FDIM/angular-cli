@@ -14,6 +14,7 @@
     "test.ts"
   ],
   "include": [
+    "test.generated.ts",
     "**/*.spec.ts",
     "**/*.d.ts"
   ]

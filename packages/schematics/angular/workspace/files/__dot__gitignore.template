@@ -5,6 +5,9 @@
 /tmp
 /out-tsc
 
+# used to run specific tests instead of all
+test.generated.ts
+
 # dependencies
 /node_modules
 

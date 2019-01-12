@@ -12,6 +12,7 @@
     "<%= rootInSrc ? '' : 'src/' %>polyfills.ts"
   ],
   "include": [
+    "<%= rootInSrc ? '' : 'src/' %>test.generated.ts",
     "**/*.spec.ts",
     "**/*.d.ts"
   ]

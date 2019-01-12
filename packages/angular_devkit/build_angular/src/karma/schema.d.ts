@@ -45,6 +45,16 @@ export interface KarmaBuilderSchema extends Pick<BrowserBuilderSchema,
    * Karma reporters to use. Directly passed to the karma runner.
    */
   reporters?: string[];
+
+  /**
+   * Glob of files to include
+   */
+  spec?: string;
+
+  /**
+   * Should this only update generated test file?
+   */
+  specUpdate?: boolean;
 }
 
 export type KarmaSourceMapOptions = boolean | KarmaSourceMapObject;

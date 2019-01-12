@@ -14,6 +14,7 @@ import * as webpack from 'webpack';
 const webpackDevMiddleware = require('webpack-dev-middleware');
 
 import { KarmaWebpackFailureCb } from './karma-webpack-failure-cb';
+import { NormalizedKarmaBuilderSchema } from '../../karma/schema';
 import { statsErrorsToString } from '../utilities/stats';
 import { getWebpackStatsConfig } from '../models/webpack-configs/stats';
 import { createConsoleLogger } from '@angular-devkit/core/node';
@@ -63,7 +64,7 @@ const init: any = (config: any, emitter: any, customFileHandlers: any) => {
     ` be used from within Angular CLI and will not work correctly outside of it.`
     )
   }
-  const options = config.buildWebpack.options;
+  const options = config.buildWebpack.options as NormalizedKarmaBuilderSchema;
   const logger: logging.Logger = config.buildWebpack.logger || createConsoleLogger();
   successCb = config.buildWebpack.successCb;
   failureCb = config.buildWebpack.failureCb;

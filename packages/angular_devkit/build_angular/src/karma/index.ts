@@ -14,6 +14,7 @@ import {
 } from '@angular-devkit/architect';
 import { Path, getSystemPath, normalize, resolve, virtualFs } from '@angular-devkit/core';
 import * as fs from 'fs';
+import * as glob from 'glob';
 import { Observable, of } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import * as ts from 'typescript'; // tslint:disable-line:no-implicit-dependencies
@@ -76,12 +77,45 @@ export class KarmaBuilder implements Builder<KarmaBuilderSchema> {
         }
 
         const sourceRoot = builderConfig.sourceRoot && resolve(root, builderConfig.sourceRoot);
+        const webpackConfig = this.buildWebpackConfig(root, projectRoot, sourceRoot, host, options);
+
+        // generate new entry point with files matching provided glob
+        if (options.spec) {
+          const mainEntry = webpackConfig.entry.main;
+          const newMainEntry = webpackConfig.entry.main.replace(/\.ts$/, '.generated.ts');
+          // replace original entry with generated one
+          webpackConfig.entry.main = newMainEntry;
+
+          try {
+            this.createOrUpdateGeneratedTestFile(
+              options.spec,
+              getSystemPath(sourceRoot || projectRoot),
+              builderConfig.sourceRoot,
+              mainEntry,
+              newMainEntry,
+            );
+
+            // early exit if we are only supposed to update generated file
+            if (options.specUpdate) {
+              obs.next({ success: true, result: 'specs updated' });
+              obs.complete();
+
+              return;
+            }
+          } catch (err) {
+            this.context.logger.error(err.message);
+            obs.next({ success: false });
+            obs.complete();
+
+            return;
+          }
+        }
 
         karmaOptions.buildWebpack = {
           root: getSystemPath(root),
           projectRoot: getSystemPath(projectRoot),
           options,
-          webpackConfig: this.buildWebpackConfig(root, projectRoot, sourceRoot, host, options),
+          webpackConfig,
           // Pass onto Karma to emit BuildEvents.
           successCb: () => obs.next({ success: true }),
           failureCb: () => obs.next({ success: false }),
@@ -159,6 +193,45 @@ export class KarmaBuilder implements Builder<KarmaBuilderSchema> {
     ];
 
     return webpackMerge(webpackConfigs);
+  }
+
+  createOrUpdateGeneratedTestFile(
+    pattern: string,
+    path: string,
+    sourceRoot: Path | undefined,
+    mainEntry: string,
+    newMainEntry: string,
+  ) {
+    let template = fs.readFileSync(mainEntry).toString();
+    // remove source root to support absolute paths
+    if (sourceRoot && pattern.startsWith(sourceRoot + '/')) {
+      pattern = pattern.substr(sourceRoot.length + 1); // +1 to include slash
+    }
+    if (pattern.endsWith('.ts') && pattern.indexOf('.spec.ts') === -1) {
+      pattern = pattern.substr(0, pattern.length - 2) + 'spec.ts';
+    } else if (pattern.indexOf('.spec') === -1) {
+      pattern += '.spec.ts';
+    }
+
+    const files = glob.sync(pattern, { cwd: path });
+    if (!files.length) {
+      throw new Error('Specified spec glob does not match any files');
+    }
+
+    const start = 'import \'';
+    const end = '\';';
+    const testCode = start + files
+      .map(path => `./${path.replace('.ts', '')}`)
+      .join(`${end}\n${start}`) + end;
+    // TODO: maybe a documented 'marker/comment' inside test.ts would be nicer
+    // or run typescript compiler and make changes based on the tree?
+    let mockedRequireContext = '{ keys: () => ({ map: (_a: any) => { } }) };';
+    mockedRequireContext += process.platform === 'win32' ? '\r\n' : '\n';
+    template = template
+      .replace(/declare\s+const\s+require:\s+any;/, '')
+      .replace(/require\.context\(.*/, mockedRequireContext + testCode);
+
+    fs.writeFileSync(newMainEntry, template);
   }
 }
 
